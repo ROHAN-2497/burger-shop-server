@@ -30,11 +30,21 @@ async function run() {
     const reviewCollection = client.db("burgerShop").collection("review");
     const cartCollection = client.db("burgerShop").collection("carts");
     // usersCollection apis
-    app.post('/users', async (req, res)=>{
-      const user = req.body;
-      const result  =await usersCollection.insertOne(user);
+    app.get("/users", async (req, res) => {
+      const result = await usersCollection.find().toArray();
       res.send(result);
-    })
+    });
+
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email };
+      const existingUser = await usersCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: "user already exist" });
+      }
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
 
     // menuCollection apis
     app.get("/menu", async (req, res) => {
