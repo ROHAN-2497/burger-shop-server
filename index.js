@@ -8,6 +8,25 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(cors());
 app.use(express.json());
+const verifyJWT = (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return req
+      .status(401)
+      .send({ error: true, message: "unauthorized access" });
+  }
+  // bearer token
+  const token = authorization.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function (err, decoded) {
+    if (err) {
+      return res
+        .status(401)
+        .send({ error: true, message: "unauthrized access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.xw5a4us.mongodb.net/?retryWrites=true&w=majority`;
@@ -30,6 +49,15 @@ async function run() {
     const usersCollection = client.db("burgerShop").collection("users");
     const reviewCollection = client.db("burgerShop").collection("review");
     const cartCollection = client.db("burgerShop").collection("carts");
+
+    app.post("/jwt", (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({ token });
+    });
+
     // usersCollection apis
     app.get("/users", async (req, res) => {
       const result = await usersCollection.find().toArray();
@@ -70,11 +98,17 @@ async function run() {
       const result = await reviewCollection.find().toArray();
       res.send(result);
     });
-    // cartCollection apis
-    app.get("/carts", async (req, res) => {
+    // cart Collection apis
+    app.get("/carts", verifyJWT, async (req, res) => {
       const email = req.query.email;
       if (!email) {
         res.send([]);
+      }
+      const decodedEmail = req.decoded.email;
+      if (email !== decodedEmail) {
+        return req
+          .status(403)
+          .send({ error: true, message: "forbidden access" });
       }
       const query = { email: email };
       const result = await cartCollection.find(query).toArray();
